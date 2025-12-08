@@ -50,10 +50,6 @@
     .action-area { margin-top: 30px; text-align: center; border-top: 2px solid #eee; padding-top: 20px; }
     button { cursor: pointer; transition: 0.3s; font-size: 1.1em; border: none; padding: 12px 30px; border-radius: 30px; margin: 5px; }
     
-    #btn-dir { background: #6c757d; color: white; }
-    #btn-dir:hover { background: #5a6268; }
-    #btn-dir.ready { background: #28a745; }
-
     #btn-run { background: #007bff; color: white; padding: 15px 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,123,255,0.3); }
     #btn-run:hover { background: #0056b3; transform: translateY(-2px); }
     #btn-run:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
@@ -61,16 +57,16 @@
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
     
     .hidden { display: none; }
-    #folder-msg { font-weight: bold; margin-bottom: 10px; color: #d9534f; }
-    #folder-msg.ok { color: #28a745; }
 </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>クリエイティブ枠付けツール </h1>
+    <h1>クリエイティブ合成ツール (Team Edition)</h1>
     <p class="desc">
-        クリエイティブと枠を合成し、指定したフォルダへ直接保存します。</p>
+        ブラウザ内で高画質合成を行い、完了したものから自動でダウンロードします。<br>
+        ※音ズレなし・画質劣化なし・サーバーアップロード不要
+    </p>
 
     <div class="step-section">
         <div class="step-header"><span class="step-num">1</span> 設定</div>
@@ -96,30 +92,26 @@
     <div class="step-section">
         <div class="step-header"><span class="step-num">2</span> 素材選択とプレビュー</div>
         
-        <p><strong>枠動画:</strong> <input type="file" id="inp-bg" accept="video/*"></p>
+        <p><strong>背景動画:</strong> <input type="file" id="inp-bg" accept="video/*"></p>
         
         <div id="preview-area">
             <canvas id="preview-canvas"></canvas>
-            <div id="preview-msg" style="color:white; font-size:0.8em;">枠動画を選択するとプレビューが表示されます</div>
+            <div id="preview-msg" style="color:white; font-size:0.8em;">背景を選択するとプレビューが表示されます</div>
         </div>
     </div>
 
     <div class="step-section">
-        <div class="step-header"><span class="step-num">3</span> クリエイティブ (複数可)</div>
+        <div class="step-header"><span class="step-num">3</span> 合成する動画 (複数可)</div>
         <input type="file" id="inp-fg" accept="video/*" multiple>
         <ul id="file-list"></ul>
     </div>
 
     <div class="action-area">
-        <div id="folder-msg">⚠ 保存先フォルダを選択してください</div>
-        <button id="btn-dir">📁 保存先フォルダを選択</button>
-        <br><br>
         <button id="btn-run" disabled>エンジンの準備中...</button>
     </div>
 </div>
 
 <video id="vid-bg" class="hidden" muted loop playsinline></video>
-<video id="vid-fg" class="hidden" muted loop playsinline></video>
 
 <script>
     const { createFFmpeg, fetchFile } = FFmpeg;
@@ -129,17 +121,13 @@
     const inpBg = document.getElementById('inp-bg');
     const inpFg = document.getElementById('inp-fg');
     const fileListEl = document.getElementById('file-list');
-    const btnDir = document.getElementById('btn-dir');
     const btnRun = document.getElementById('btn-run');
-    const folderMsg = document.getElementById('folder-msg');
     const vidBg = document.getElementById('vid-bg');
-    const vidFg = document.getElementById('vid-fg');
     const canvas = document.getElementById('preview-canvas');
     const ctx = canvas.getContext('2d');
     const previewMsg = document.getElementById('preview-msg');
 
     // State
-    let dirHandle = null;
     let filesQueue = [];
     let config = { width: 1920, height: 1080, scale: 0.8, aspect: '16:9' };
     let isFfmpegReady = false;
@@ -186,9 +174,8 @@
 
         // 赤枠（配置イメージ）描画
         const tW = canvas.width * config.scale;
-        const tH = (config.aspect === '16:9') ? tW * (9/16) : tW * (16/9); // 前面動画のアスペクト比(仮)
+        const tH = (config.aspect === '16:9') ? tW * (9/16) : tW * (16/9); 
         
-        // ※前面動画はまだ読み込まれていない場合があるので、枠線だけで表現
         const x = (canvas.width - tW) / 2;
         const y = (canvas.height - tH) / 2;
 
@@ -244,19 +231,16 @@
             const li = document.createElement('li');
             li.className = 'file-item';
             
-            // 元のファイル名（小さく表示）
             const origSpan = document.createElement('span');
             origSpan.className = 'file-orig-name';
             origSpan.innerText = item.file.name;
 
-            // リネーム入力
             const input = document.createElement('input');
             input.type = 'text';
             input.className = 'file-name-input';
             input.value = item.newName;
             input.onchange = (e) => item.newName = e.target.value;
 
-            // ステータスバッジ
             const badge = document.createElement('span');
             badge.className = `status-badge status-${item.status}`;
             badge.id = `badge-${idx}`;
@@ -272,7 +256,7 @@
     function getStatusText(status) {
         if(status === 'waiting') return '待機中';
         if(status === 'processing') return '処理中';
-        if(status === 'saving') return '保存中';
+        if(status === 'saving') return '完了待ち';
         if(status === 'done') return '完了';
         if(status === 'error') return 'エラー';
         return '';
@@ -287,34 +271,19 @@
         }
     }
 
-    // --- 4. フォルダ選択 (FileSystem Access API) ---
-    btnDir.onclick = async () => {
-        try {
-            dirHandle = await window.showDirectoryPicker();
-            folderMsg.innerText = "✅ 保存先: " + dirHandle.name;
-            folderMsg.className = "ok";
-            btnDir.innerText = "変更する";
-            btnDir.classList.add("ready");
-            checkReady();
-        } catch (e) {
-            console.log("フォルダ選択キャンセル");
-        }
-    };
-
     function checkReady() {
-        const isReady = isFfmpegReady && dirHandle && inpBg.files.length > 0 && filesQueue.length > 0;
+        const isReady = isFfmpegReady && inpBg.files.length > 0 && filesQueue.length > 0;
         if(isReady) {
             btnRun.innerText = "一括作成を開始";
             btnRun.disabled = false;
         } else {
             if(!isFfmpegReady) btnRun.innerText = "エンジンの準備中...";
-            else if(!dirHandle) btnRun.innerText = "フォルダ未選択";
             else btnRun.innerText = "素材を選択してください";
             btnRun.disabled = true;
         }
     }
 
-    // --- 5. 実行処理 (FFmpeg) ---
+    // --- 4. 実行処理 (FFmpeg) ---
     btnRun.onclick = async () => {
         btnRun.disabled = true;
         
@@ -342,16 +311,23 @@
                     outName
                 );
 
-                // 保存処理
+                // 保存処理 (自動ダウンロード)
                 updateStatus(i, 'saving');
                 const data = ffmpeg.FS('readFile', outName);
                 
-                // フォルダへ直接保存
-                const newFileName = `${item.newName}.mp4`;
-                const fileHandle = await dirHandle.getFileHandle(newFileName, { create: true });
-                const writable = await fileHandle.createWritable();
-                await writable.write(data);
-                await writable.close();
+                const blob = new Blob([data.buffer], { type: 'video/mp4' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${item.newName}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 2000);
 
                 // クリーンアップ
                 ffmpeg.FS('unlink', 'input.mp4');
