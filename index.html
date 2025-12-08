@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>クリエイティブ合成ツール (Team Edition)</title>
+<script src="coi-serviceworker.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background: #f0f2f5; color: #333; margin: 0; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    h1 { margin-top: 0; color: #0056b3; }
+    .desc { color: #666; margin-bottom: 20px; font-size: 0.9em; background: #eef; padding: 10px; border-radius: 5px; }
+    .step-box { border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 20px; background: #fafbfc; }
+    .step-title { font-weight: bold; margin-bottom: 10px; display: block; color: #444; }
+    .radio-group label { margin-right: 15px; cursor: pointer; background: white; padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; display: inline-block; }
+    .radio-group input:checked + span { font-weight: bold; color: #0056b3; }
+    button#btn-run { background: #007bff; color: white; border: none; padding: 15px 40px; font-size: 1.2em; border-radius: 30px; cursor: pointer; width: 100%; transition: background 0.3s; }
+    button#btn-run:hover { background: #0056b3; }
+    button#btn-run:disabled { background: #ccc; cursor: not-allowed; }
+    #log-area { background: #333; color: #0f0; padding: 15px; border-radius: 6px; font-family: monospace; height: 150px; overflow-y: auto; margin-top: 20px; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>クリエイティブ合成ツール (Team Edition)</h1>
+    <p class="desc">
+        チーム共有用ツールです。ブラウザ内で高画質・音ズレなしで合成を行います。<br>
+        ※初回のみエンジンのロードに少し時間がかかります。
+    </p>
+
+    <div class="step-box">
+        <span class="step-title">1. 設定</span>
+        <div class="radio-group">
+            <label><input type="radio" name="scale" value="0.9"> <span>大 (90%)</span></label>
+            <label><input type="radio" name="scale" value="0.8" checked> <span>中 (80%)</span></label>
+            <label><input type="radio" name="scale" value="0.7"> <span>小 (70%)</span></label>
+        </div>
+    </div>
+
+    <div class="step-box">
+        <span class="step-title">2. 素材選択</span>
+        <p><strong>背景動画:</strong> <input type="file" id="inp-bg"></p>
+        <p><strong>前面動画 (複数可):</strong> <input type="file" id="inp-fg" multiple></p>
+    </div>
+
+    <button id="btn-run" disabled>エンジンの準備中...</button>
+    <div id="log-area">システムログ待機中...</div>
+</div>
+
+<script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true, corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js' });
+    const btnRun = document.getElementById('btn-run');
+    const logArea = document.getElementById('log-area');
+    const inpBg = document.getElementById('inp-bg');
+    const inpFg = document.getElementById('inp-fg');
+    let scaleRatio = 0.8;
+
+    function log(msg) { logArea.innerHTML += `<div>> ${msg}</div>`; logArea.scrollTop = logArea.scrollHeight; }
+
+    async function init() {
+        try {
+            log("FFmpegエンジンをロード中...");
+            await ffmpeg.load();
+            log("準備完了！");
+            btnRun.innerText = "一括作成を開始";
+            btnRun.disabled = false;
+        } catch (e) {
+            log("エラー: エンジンのロードに失敗しました。");
+            console.error(e);
+        }
+    }
+    init();
+
+    document.querySelectorAll('input[name="scale"]').forEach(el => {
+        el.addEventListener('change', (e) => { scaleRatio = parseFloat(e.target.value); });
+    });
+
+    btnRun.onclick = async () => {
+        const bgFile = inpBg.files[0];
+        const fgFiles = inpFg.files;
+        if (!bgFile || fgFiles.length === 0) { alert("動画を選択してください"); return; }
+        btnRun.disabled = true; btnRun.innerText = "処理中...";
+
+        ffmpeg.FS('writeFile', 'bg.mp4', await fetchFile(bgFile));
+        for (let i = 0; i < fgFiles.length; i++) {
+            const fgFile = fgFiles[i];
+            const outName = `output_${i}.mp4`;
+            log(`処理開始 [${i+1}/${fgFiles.length}]: ${fgFile.name}`);
+            ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(fgFile));
+            
+            await ffmpeg.run('-stream_loop', '-1', '-i', 'bg.mp4', '-i', 'input.mp4', 
+                '-filter_complex', `[1:v]scale=iw*${scaleRatio}:-1[fg];[0:v][fg]overlay=(W-w)/2:(H-h)/2:shortest=1`,
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', outName);
+            
+            const data = ffmpeg.FS('readFile', outName);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+            a.download = `edit_${fgFile.name.replace(/\.[^/.]+$/, "")}.mp4`;
+            a.click();
+            log(`完了: ${fgFile.name}`);
+        }
+        ffmpeg.FS('unlink', 'bg.mp4');
+        btnRun.innerText = "一括作成を開始"; btnRun.disabled = false;
+        alert("すべての処理が完了しました！");
+    };
+</script>
+</body>
+</html>
