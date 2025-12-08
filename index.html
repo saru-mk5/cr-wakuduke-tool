@@ -8,102 +8,366 @@
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <style>
     body { font-family: "Helvetica Neue", Arial, sans-serif; background: #f0f2f5; color: #333; margin: 0; padding: 20px; }
-    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-    h1 { margin-top: 0; color: #0056b3; }
-    .desc { color: #666; margin-bottom: 20px; font-size: 0.9em; background: #eef; padding: 10px; border-radius: 5px; }
-    .step-box { border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 20px; background: #fafbfc; }
-    .step-title { font-weight: bold; margin-bottom: 10px; display: block; color: #444; }
-    .radio-group label { margin-right: 15px; cursor: pointer; background: white; padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; display: inline-block; }
+    .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    
+    h1 { margin-top: 0; color: #0056b3; margin-bottom: 5px; }
+    .desc { color: #666; margin-bottom: 25px; font-size: 0.9em; }
+
+    /* ステップデザイン (青丸数字) */
+    .step-section { margin-bottom: 25px; padding: 20px; border: 1px solid #e1e4e8; border-radius: 8px; background: #fafbfc; }
+    .step-header { font-weight: bold; font-size: 1.1em; margin-bottom: 15px; display: flex; align-items: center; color: #333; }
+    .step-num { 
+        background: #007bff; color: white; width: 28px; height: 28px; border-radius: 50%; 
+        display: inline-flex; justify-content: center; align-items: center; margin-right: 10px; 
+        font-weight: bold; font-size: 0.9em;
+    }
+
+    /* ラジオボタン */
+    .radio-group label { margin-right: 15px; cursor: pointer; background: white; padding: 5px 12px; border: 1px solid #ccc; border-radius: 4px; display: inline-block; font-size: 0.95em; }
     .radio-group input:checked + span { font-weight: bold; color: #0056b3; }
-    button#btn-run { background: #007bff; color: white; border: none; padding: 15px 40px; font-size: 1.2em; border-radius: 30px; cursor: pointer; width: 100%; transition: background 0.3s; }
-    button#btn-run:hover { background: #0056b3; }
-    button#btn-run:disabled { background: #ccc; cursor: not-allowed; }
-    #log-area { background: #333; color: #0f0; padding: 15px; border-radius: 6px; font-family: monospace; height: 150px; overflow-y: auto; margin-top: 20px; font-size: 0.85em; }
+
+    /* プレビューエリア */
+    #preview-area { text-align: center; background: #000; padding: 10px; border-radius: 4px; margin-top: 10px; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+    canvas { max-width: 100%; height: auto; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+
+    /* ファイルリスト */
+    #file-list { list-style: none; padding: 0; margin-top: 10px; max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; }
+    .file-item { background: white; border-bottom: 1px solid #eee; padding: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .file-item:last-child { border-bottom: none; }
+    
+    .file-name-input { flex: 1; padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; }
+    .file-orig-name { font-size: 0.8em; color: #888; margin-right: 10px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ステータスバッジ */
+    .status-badge { font-size: 0.8em; padding: 4px 10px; border-radius: 12px; white-space: nowrap; font-weight: bold; min-width: 60px; text-align: center; }
+    .status-waiting { background: #eee; color: #666; }
+    .status-processing { background: #fff3cd; color: #856404; animation: pulse 1s infinite; }
+    .status-saving { background: #cce5ff; color: #004085; }
+    .status-done { background: #d4edda; color: #155724; }
+    .status-error { background: #f8d7da; color: #721c24; }
+
+    /* ボタン */
+    .action-area { margin-top: 30px; text-align: center; border-top: 2px solid #eee; padding-top: 20px; }
+    button { cursor: pointer; transition: 0.3s; font-size: 1.1em; border: none; padding: 12px 30px; border-radius: 30px; margin: 5px; }
+    
+    #btn-dir { background: #6c757d; color: white; }
+    #btn-dir:hover { background: #5a6268; }
+    #btn-dir.ready { background: #28a745; }
+
+    #btn-run { background: #007bff; color: white; padding: 15px 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,123,255,0.3); }
+    #btn-run:hover { background: #0056b3; transform: translateY(-2px); }
+    #btn-run:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    
+    .hidden { display: none; }
+    #folder-msg { font-weight: bold; margin-bottom: 10px; color: #d9534f; }
+    #folder-msg.ok { color: #28a745; }
 </style>
 </head>
 <body>
-<div class="container">
-    <h1>クリエイティブ合成ツール (Team Edition)</h1>
-    <p class="desc">
-        チーム共有用ツールです。ブラウザ内で高画質・音ズレなしで合成を行います。<br>
-        ※初回のみエンジンのロードに少し時間がかかります。
-    </p>
 
-    <div class="step-box">
-        <span class="step-title">1. 設定</span>
-        <div class="radio-group">
-            <label><input type="radio" name="scale" value="0.9"> <span>大 (90%)</span></label>
-            <label><input type="radio" name="scale" value="0.8" checked> <span>中 (80%)</span></label>
-            <label><input type="radio" name="scale" value="0.7"> <span>小 (70%)</span></label>
+<div class="container">
+    <h1>クリエイティブ枠付けツール </h1>
+    <p class="desc">
+        クリエイティブと枠を合成し、指定したフォルダへ直接保存します。</p>
+
+    <div class="step-section">
+        <div class="step-header"><span class="step-num">1</span> 設定</div>
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+            <div>
+                <p style="margin:0 0 5px 0; font-size:0.9em; color:#666;">アスペクト比</p>
+                <div class="radio-group">
+                    <label><input type="radio" name="aspect" value="16:9" checked> <span>16:9 (横)</span></label>
+                    <label><input type="radio" name="aspect" value="9:16"> <span>9:16 (縦)</span></label>
+                </div>
+            </div>
+            <div>
+                <p style="margin:0 0 5px 0; font-size:0.9em; color:#666;">前面動画サイズ</p>
+                <div class="radio-group">
+                    <label><input type="radio" name="scale" value="0.9"> <span>大 (90%)</span></label>
+                    <label><input type="radio" name="scale" value="0.8" checked> <span>中 (80%)</span></label>
+                    <label><input type="radio" name="scale" value="0.7"> <span>小 (70%)</span></label>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="step-box">
-        <span class="step-title">2. 素材選択</span>
-        <p><strong>背景動画:</strong> <input type="file" id="inp-bg"></p>
-        <p><strong>前面動画 (複数可):</strong> <input type="file" id="inp-fg" multiple></p>
+    <div class="step-section">
+        <div class="step-header"><span class="step-num">2</span> 素材選択とプレビュー</div>
+        
+        <p><strong>枠動画:</strong> <input type="file" id="inp-bg" accept="video/*"></p>
+        
+        <div id="preview-area">
+            <canvas id="preview-canvas"></canvas>
+            <div id="preview-msg" style="color:white; font-size:0.8em;">枠動画を選択するとプレビューが表示されます</div>
+        </div>
     </div>
 
-    <button id="btn-run" disabled>エンジンの準備中...</button>
-    <div id="log-area">システムログ待機中...</div>
+    <div class="step-section">
+        <div class="step-header"><span class="step-num">3</span> クリエイティブ (複数可)</div>
+        <input type="file" id="inp-fg" accept="video/*" multiple>
+        <ul id="file-list"></ul>
+    </div>
+
+    <div class="action-area">
+        <div id="folder-msg">⚠ 保存先フォルダを選択してください</div>
+        <button id="btn-dir">📁 保存先フォルダを選択</button>
+        <br><br>
+        <button id="btn-run" disabled>エンジンの準備中...</button>
+    </div>
 </div>
+
+<video id="vid-bg" class="hidden" muted loop playsinline></video>
+<video id="vid-fg" class="hidden" muted loop playsinline></video>
 
 <script>
     const { createFFmpeg, fetchFile } = FFmpeg;
     const ffmpeg = createFFmpeg({ log: true, corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js' });
-    const btnRun = document.getElementById('btn-run');
-    const logArea = document.getElementById('log-area');
+
+    // UI Elements
     const inpBg = document.getElementById('inp-bg');
     const inpFg = document.getElementById('inp-fg');
-    let scaleRatio = 0.8;
+    const fileListEl = document.getElementById('file-list');
+    const btnDir = document.getElementById('btn-dir');
+    const btnRun = document.getElementById('btn-run');
+    const folderMsg = document.getElementById('folder-msg');
+    const vidBg = document.getElementById('vid-bg');
+    const vidFg = document.getElementById('vid-fg');
+    const canvas = document.getElementById('preview-canvas');
+    const ctx = canvas.getContext('2d');
+    const previewMsg = document.getElementById('preview-msg');
 
-    function log(msg) { logArea.innerHTML += `<div>> ${msg}</div>`; logArea.scrollTop = logArea.scrollHeight; }
+    // State
+    let dirHandle = null;
+    let filesQueue = [];
+    let config = { width: 1920, height: 1080, scale: 0.8, aspect: '16:9' };
+    let isFfmpegReady = false;
 
-    async function init() {
+    // --- 1. FFmpeg 初期化 ---
+    async function initFFmpeg() {
         try {
-            log("FFmpegエンジンをロード中...");
             await ffmpeg.load();
-            log("準備完了！");
-            btnRun.innerText = "一括作成を開始";
-            btnRun.disabled = false;
+            isFfmpegReady = true;
+            checkReady();
         } catch (e) {
-            log("エラー: エンジンのロードに失敗しました。");
+            alert("エンジンのロードに失敗しました。Webサーバー上で実行してください。");
             console.error(e);
         }
     }
-    init();
+    initFFmpeg();
 
-    document.querySelectorAll('input[name="scale"]').forEach(el => {
-        el.addEventListener('change', (e) => { scaleRatio = parseFloat(e.target.value); });
+    // --- 2. プレビュー関連 (Canvas) ---
+    function updateConfig() {
+        if (config.aspect === '16:9') {
+            config.width = 1920; config.height = 1080;
+        } else {
+            config.width = 1080; config.height = 1920;
+        }
+        // プレビュー表示サイズ調整
+        const aspect = config.width / config.height;
+        let pW = 600; let pH = pW / aspect;
+        if (pH > 400) { pH = 400; pW = pH * aspect; }
+        canvas.width = pW; canvas.height = pH;
+    }
+    updateConfig();
+
+    function drawPreview() {
+        if (vidBg.paused && vidBg.readyState >= 2) vidBg.play();
+        
+        // 背景描画
+        if (vidBg.readyState >= 2) {
+            ctx.drawImage(vidBg, 0, 0, canvas.width, canvas.height);
+            previewMsg.style.display = 'none';
+        } else {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // 赤枠（配置イメージ）描画
+        const tW = canvas.width * config.scale;
+        const tH = (config.aspect === '16:9') ? tW * (9/16) : tW * (16/9); // 前面動画のアスペクト比(仮)
+        
+        // ※前面動画はまだ読み込まれていない場合があるので、枠線だけで表現
+        const x = (canvas.width - tW) / 2;
+        const y = (canvas.height - tH) / 2;
+
+        ctx.strokeStyle = '#00ff00'; // 見やすい緑色
+        ctx.lineWidth = 4;
+        ctx.strokeRect(x, y, tW, tH);
+
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
+        ctx.fillRect(x, y, tW, tH);
+
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText("ここに動画が入ります", canvas.width/2, canvas.height/2);
+
+        requestAnimationFrame(drawPreview);
+    }
+    drawPreview();
+
+    // イベントリスナー: 設定変更
+    document.querySelectorAll('input[name="aspect"]').forEach(el => el.addEventListener('change', e => {
+        config.aspect = e.target.value;
+        updateConfig();
+    }));
+    document.querySelectorAll('input[name="scale"]').forEach(el => el.addEventListener('change', e => {
+        config.scale = parseFloat(e.target.value);
+    }));
+
+    // イベントリスナー: 背景動画選択
+    inpBg.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if(file) {
+            vidBg.src = URL.createObjectURL(file);
+            checkReady();
+        }
     });
 
-    btnRun.onclick = async () => {
-        const bgFile = inpBg.files[0];
-        const fgFiles = inpFg.files;
-        if (!bgFile || fgFiles.length === 0) { alert("動画を選択してください"); return; }
-        btnRun.disabled = true; btnRun.innerText = "処理中...";
+    // --- 3. ファイルリスト管理 ---
+    inpFg.addEventListener('change', e => {
+        filesQueue = Array.from(e.target.files).map((file, i) => ({
+            id: i,
+            file: file,
+            status: 'waiting',
+            newName: file.name.replace(/\.[^/.]+$/, "") // 拡張子なし
+        }));
+        renderFileList();
+        checkReady();
+    });
 
-        ffmpeg.FS('writeFile', 'bg.mp4', await fetchFile(bgFile));
-        for (let i = 0; i < fgFiles.length; i++) {
-            const fgFile = fgFiles[i];
-            const outName = `output_${i}.mp4`;
-            log(`処理開始 [${i+1}/${fgFiles.length}]: ${fgFile.name}`);
-            ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(fgFile));
+    function renderFileList() {
+        fileListEl.innerHTML = '';
+        filesQueue.forEach((item, idx) => {
+            const li = document.createElement('li');
+            li.className = 'file-item';
             
-            await ffmpeg.run('-stream_loop', '-1', '-i', 'bg.mp4', '-i', 'input.mp4', 
-                '-filter_complex', `[1:v]scale=iw*${scaleRatio}:-1[fg];[0:v][fg]overlay=(W-w)/2:(H-h)/2:shortest=1`,
-                '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', outName);
-            
-            const data = ffmpeg.FS('readFile', outName);
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-            a.download = `edit_${fgFile.name.replace(/\.[^/.]+$/, "")}.mp4`;
-            a.click();
-            log(`完了: ${fgFile.name}`);
+            // 元のファイル名（小さく表示）
+            const origSpan = document.createElement('span');
+            origSpan.className = 'file-orig-name';
+            origSpan.innerText = item.file.name;
+
+            // リネーム入力
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'file-name-input';
+            input.value = item.newName;
+            input.onchange = (e) => item.newName = e.target.value;
+
+            // ステータスバッジ
+            const badge = document.createElement('span');
+            badge.className = `status-badge status-${item.status}`;
+            badge.id = `badge-${idx}`;
+            badge.innerText = getStatusText(item.status);
+
+            li.appendChild(origSpan);
+            li.appendChild(input);
+            li.appendChild(badge);
+            fileListEl.appendChild(li);
+        });
+    }
+
+    function getStatusText(status) {
+        if(status === 'waiting') return '待機中';
+        if(status === 'processing') return '処理中';
+        if(status === 'saving') return '保存中';
+        if(status === 'done') return '完了';
+        if(status === 'error') return 'エラー';
+        return '';
+    }
+
+    function updateStatus(idx, status) {
+        filesQueue[idx].status = status;
+        const badge = document.getElementById(`badge-${idx}`);
+        if(badge) {
+            badge.className = `status-badge status-${status}`;
+            badge.innerText = getStatusText(status);
         }
+    }
+
+    // --- 4. フォルダ選択 (FileSystem Access API) ---
+    btnDir.onclick = async () => {
+        try {
+            dirHandle = await window.showDirectoryPicker();
+            folderMsg.innerText = "✅ 保存先: " + dirHandle.name;
+            folderMsg.className = "ok";
+            btnDir.innerText = "変更する";
+            btnDir.classList.add("ready");
+            checkReady();
+        } catch (e) {
+            console.log("フォルダ選択キャンセル");
+        }
+    };
+
+    function checkReady() {
+        const isReady = isFfmpegReady && dirHandle && inpBg.files.length > 0 && filesQueue.length > 0;
+        if(isReady) {
+            btnRun.innerText = "一括作成を開始";
+            btnRun.disabled = false;
+        } else {
+            if(!isFfmpegReady) btnRun.innerText = "エンジンの準備中...";
+            else if(!dirHandle) btnRun.innerText = "フォルダ未選択";
+            else btnRun.innerText = "素材を選択してください";
+            btnRun.disabled = true;
+        }
+    }
+
+    // --- 5. 実行処理 (FFmpeg) ---
+    btnRun.onclick = async () => {
+        btnRun.disabled = true;
+        
+        // 背景の読み込み
+        const bgFile = inpBg.files[0];
+        ffmpeg.FS('writeFile', 'bg.mp4', await fetchFile(bgFile));
+
+        for (let i = 0; i < filesQueue.length; i++) {
+            const item = filesQueue[i];
+            updateStatus(i, 'processing');
+
+            try {
+                // 前面の読み込み
+                ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(item.file));
+
+                // コマンド実行 (背景ループ + リサイズ合成)
+                const outName = `output.mp4`;
+                await ffmpeg.run(
+                    '-stream_loop', '-1', 
+                    '-i', 'bg.mp4', 
+                    '-i', 'input.mp4', 
+                    '-filter_complex', `[1:v]scale=iw*${config.scale}:-1[fg];[0:v][fg]overlay=(W-w)/2:(H-h)/2:shortest=1`,
+                    '-c:v', 'libx264', '-preset', 'ultrafast', 
+                    '-c:a', 'aac', 
+                    outName
+                );
+
+                // 保存処理
+                updateStatus(i, 'saving');
+                const data = ffmpeg.FS('readFile', outName);
+                
+                // フォルダへ直接保存
+                const newFileName = `${item.newName}.mp4`;
+                const fileHandle = await dirHandle.getFileHandle(newFileName, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(data);
+                await writable.close();
+
+                // クリーンアップ
+                ffmpeg.FS('unlink', 'input.mp4');
+                ffmpeg.FS('unlink', outName);
+                updateStatus(i, 'done');
+
+            } catch (err) {
+                console.error(err);
+                updateStatus(i, 'error');
+            }
+        }
+        
         ffmpeg.FS('unlink', 'bg.mp4');
-        btnRun.innerText = "一括作成を開始"; btnRun.disabled = false;
         alert("すべての処理が完了しました！");
+        btnRun.disabled = false;
+        btnRun.innerText = "一括作成を開始";
     };
 </script>
 </body>
