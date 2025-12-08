@@ -3,27 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>クリエイティブ合成ツール (Team Edition)</title>
+<title>クリエイティブ枠付けツール</title>
 <script src="coi-serviceworker.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <style>
     body { font-family: "Helvetica Neue", Arial, sans-serif; background: #f0f2f5; color: #333; margin: 0; padding: 20px; }
     .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
     
+    /* ★変更点: タイトル色を統一 */
     h1 { margin-top: 0; color: #0056b3; margin-bottom: 5px; }
     .desc { color: #666; margin-bottom: 25px; font-size: 0.9em; }
 
     /* ステップデザイン (青丸数字) */
     .step-section { margin-bottom: 25px; padding: 20px; border: 1px solid #e1e4e8; border-radius: 8px; background: #fafbfc; }
     .step-header { font-weight: bold; font-size: 1.1em; margin-bottom: 15px; display: flex; align-items: center; color: #333; }
+    
+    /* ★変更点: 丸数字の背景色を統一 */
     .step-num { 
-        background: #007bff; color: white; width: 28px; height: 28px; border-radius: 50%; 
+        background: #0056b3; color: white; width: 28px; height: 28px; border-radius: 50%; 
         display: inline-flex; justify-content: center; align-items: center; margin-right: 10px; 
         font-weight: bold; font-size: 0.9em;
     }
 
     /* ラジオボタン */
     .radio-group label { margin-right: 15px; cursor: pointer; background: white; padding: 5px 12px; border: 1px solid #ccc; border-radius: 4px; display: inline-block; font-size: 0.95em; }
+    /* ★変更点: 選択時の文字色を統一 */
     .radio-group input:checked + span { font-weight: bold; color: #0056b3; }
 
     /* プレビューエリア */
@@ -50,7 +54,9 @@
     .action-area { margin-top: 30px; text-align: center; border-top: 2px solid #eee; padding-top: 20px; }
     button { cursor: pointer; transition: 0.3s; font-size: 1.1em; border: none; padding: 12px 30px; border-radius: 30px; margin: 5px; }
     
+    /* ★変更点: ボタン色も同系色に変更（少し明るめにして押しやすく） */
     #btn-run { background: #007bff; color: white; padding: 15px 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,123,255,0.3); }
+    /* ★変更点: ホバー時はタイトルと同じ濃い青に */
     #btn-run:hover { background: #0056b3; transform: translateY(-2px); }
     #btn-run:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
 
@@ -62,10 +68,9 @@
 <body>
 
 <div class="container">
-    <h1>クリエイティブ合成ツール (Team Edition)</h1>
+    <h1>クリエイティブ枠付けツール</h1>
     <p class="desc">
-        ブラウザ内で高画質合成を行い、完了したものから自動でダウンロードします。<br>
-        ※音ズレなし・画質劣化なし・サーバーアップロード不要
+        選択した複数動画に、枠を一括で合成・保存することが可能です🐵
     </p>
 
     <div class="step-section">
@@ -74,12 +79,12 @@
             <div>
                 <p style="margin:0 0 5px 0; font-size:0.9em; color:#666;">アスペクト比</p>
                 <div class="radio-group">
-                    <label><input type="radio" name="aspect" value="16:9" checked> <span>16:9 (横)</span></label>
-                    <label><input type="radio" name="aspect" value="9:16"> <span>9:16 (縦)</span></label>
+                    <label><input type="radio" name="aspect" value="16:9" checked> <span>16:9 (横動画)</span></label>
+                    <label><input type="radio" name="aspect" value="9:16"> <span>9:16 (縦動画)</span></label>
                 </div>
             </div>
             <div>
-                <p style="margin:0 0 5px 0; font-size:0.9em; color:#666;">前面動画サイズ</p>
+                <p style="margin:0 0 5px 0; font-size:0.9em; color:#666;">枠のサイズ</p>
                 <div class="radio-group">
                     <label><input type="radio" name="scale" value="0.9"> <span>大 (90%)</span></label>
                     <label><input type="radio" name="scale" value="0.8" checked> <span>中 (80%)</span></label>
@@ -90,18 +95,18 @@
     </div>
 
     <div class="step-section">
-        <div class="step-header"><span class="step-num">2</span> 素材選択とプレビュー</div>
+        <div class="step-header"><span class="step-num">2</span> クリエイティブ選択とプレビュー</div>
         
-        <p><strong>背景動画:</strong> <input type="file" id="inp-bg" accept="video/*"></p>
+        <p><strong>枠動画:</strong> <input type="file" id="inp-bg" accept="video/*"></p>
         
         <div id="preview-area">
             <canvas id="preview-canvas"></canvas>
-            <div id="preview-msg" style="color:white; font-size:0.8em;">背景を選択するとプレビューが表示されます</div>
+            <div id="preview-msg" style="color:white; font-size:0.8em;">枠動画を選択するとプレビューが表示されます</div>
         </div>
     </div>
 
     <div class="step-section">
-        <div class="step-header"><span class="step-num">3</span> 合成する動画 (複数可)</div>
+        <div class="step-header"><span class="step-num">3</span> クリエイティブ選択 (複数可)</div>
         <input type="file" id="inp-fg" accept="video/*" multiple>
         <ul id="file-list"></ul>
     </div>
@@ -200,151 +205,4 @@
         config.aspect = e.target.value;
         updateConfig();
     }));
-    document.querySelectorAll('input[name="scale"]').forEach(el => el.addEventListener('change', e => {
-        config.scale = parseFloat(e.target.value);
-    }));
-
-    // イベントリスナー: 背景動画選択
-    inpBg.addEventListener('change', e => {
-        const file = e.target.files[0];
-        if(file) {
-            vidBg.src = URL.createObjectURL(file);
-            checkReady();
-        }
-    });
-
-    // --- 3. ファイルリスト管理 ---
-    inpFg.addEventListener('change', e => {
-        filesQueue = Array.from(e.target.files).map((file, i) => ({
-            id: i,
-            file: file,
-            status: 'waiting',
-            newName: file.name.replace(/\.[^/.]+$/, "") // 拡張子なし
-        }));
-        renderFileList();
-        checkReady();
-    });
-
-    function renderFileList() {
-        fileListEl.innerHTML = '';
-        filesQueue.forEach((item, idx) => {
-            const li = document.createElement('li');
-            li.className = 'file-item';
-            
-            const origSpan = document.createElement('span');
-            origSpan.className = 'file-orig-name';
-            origSpan.innerText = item.file.name;
-
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'file-name-input';
-            input.value = item.newName;
-            input.onchange = (e) => item.newName = e.target.value;
-
-            const badge = document.createElement('span');
-            badge.className = `status-badge status-${item.status}`;
-            badge.id = `badge-${idx}`;
-            badge.innerText = getStatusText(item.status);
-
-            li.appendChild(origSpan);
-            li.appendChild(input);
-            li.appendChild(badge);
-            fileListEl.appendChild(li);
-        });
-    }
-
-    function getStatusText(status) {
-        if(status === 'waiting') return '待機中';
-        if(status === 'processing') return '処理中';
-        if(status === 'saving') return '完了待ち';
-        if(status === 'done') return '完了';
-        if(status === 'error') return 'エラー';
-        return '';
-    }
-
-    function updateStatus(idx, status) {
-        filesQueue[idx].status = status;
-        const badge = document.getElementById(`badge-${idx}`);
-        if(badge) {
-            badge.className = `status-badge status-${status}`;
-            badge.innerText = getStatusText(status);
-        }
-    }
-
-    function checkReady() {
-        const isReady = isFfmpegReady && inpBg.files.length > 0 && filesQueue.length > 0;
-        if(isReady) {
-            btnRun.innerText = "一括作成を開始";
-            btnRun.disabled = false;
-        } else {
-            if(!isFfmpegReady) btnRun.innerText = "エンジンの準備中...";
-            else btnRun.innerText = "素材を選択してください";
-            btnRun.disabled = true;
-        }
-    }
-
-    // --- 4. 実行処理 (FFmpeg) ---
-    btnRun.onclick = async () => {
-        btnRun.disabled = true;
-        
-        // 背景の読み込み
-        const bgFile = inpBg.files[0];
-        ffmpeg.FS('writeFile', 'bg.mp4', await fetchFile(bgFile));
-
-        for (let i = 0; i < filesQueue.length; i++) {
-            const item = filesQueue[i];
-            updateStatus(i, 'processing');
-
-            try {
-                // 前面の読み込み
-                ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(item.file));
-
-                // コマンド実行 (背景ループ + リサイズ合成)
-                const outName = `output.mp4`;
-                await ffmpeg.run(
-                    '-stream_loop', '-1', 
-                    '-i', 'bg.mp4', 
-                    '-i', 'input.mp4', 
-                    '-filter_complex', `[1:v]scale=iw*${config.scale}:-1[fg];[0:v][fg]overlay=(W-w)/2:(H-h)/2:shortest=1`,
-                    '-c:v', 'libx264', '-preset', 'ultrafast', 
-                    '-c:a', 'aac', 
-                    outName
-                );
-
-                // 保存処理 (自動ダウンロード)
-                updateStatus(i, 'saving');
-                const data = ffmpeg.FS('readFile', outName);
-                
-                const blob = new Blob([data.buffer], { type: 'video/mp4' });
-                const url = URL.createObjectURL(blob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${item.newName}.mp4`;
-                document.body.appendChild(a);
-                a.click();
-                
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 2000);
-
-                // クリーンアップ
-                ffmpeg.FS('unlink', 'input.mp4');
-                ffmpeg.FS('unlink', outName);
-                updateStatus(i, 'done');
-
-            } catch (err) {
-                console.error(err);
-                updateStatus(i, 'error');
-            }
-        }
-        
-        ffmpeg.FS('unlink', 'bg.mp4');
-        alert("すべての処理が完了しました！");
-        btnRun.disabled = false;
-        btnRun.innerText = "一括作成を開始";
-    };
-</script>
-</body>
-</html>
+    document.querySelectorAll('input
