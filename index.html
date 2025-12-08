@@ -205,4 +205,151 @@
         config.aspect = e.target.value;
         updateConfig();
     }));
-    document.querySelectorAll('input
+    document.querySelectorAll('input[name="scale"]').forEach(el => el.addEventListener('change', e => {
+        config.scale = parseFloat(e.target.value);
+    }));
+
+    // イベントリスナー: 背景動画選択
+    inpBg.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if(file) {
+            vidBg.src = URL.createObjectURL(file);
+            checkReady();
+        }
+    });
+
+    // --- 3. ファイルリスト管理 ---
+    inpFg.addEventListener('change', e => {
+        filesQueue = Array.from(e.target.files).map((file, i) => ({
+            id: i,
+            file: file,
+            status: 'waiting',
+            newName: file.name.replace(/\.[^/.]+$/, "") // 拡張子なし
+        }));
+        renderFileList();
+        checkReady();
+    });
+
+    function renderFileList() {
+        fileListEl.innerHTML = '';
+        filesQueue.forEach((item, idx) => {
+            const li = document.createElement('li');
+            li.className = 'file-item';
+            
+            const origSpan = document.createElement('span');
+            origSpan.className = 'file-orig-name';
+            origSpan.innerText = item.file.name;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'file-name-input';
+            input.value = item.newName;
+            input.onchange = (e) => item.newName = e.target.value;
+
+            const badge = document.createElement('span');
+            badge.className = `status-badge status-${item.status}`;
+            badge.id = `badge-${idx}`;
+            badge.innerText = getStatusText(item.status);
+
+            li.appendChild(origSpan);
+            li.appendChild(input);
+            li.appendChild(badge);
+            fileListEl.appendChild(li);
+        });
+    }
+
+    function getStatusText(status) {
+        if(status === 'waiting') return '待機中';
+        if(status === 'processing') return '処理中';
+        if(status === 'saving') return '完了待ち';
+        if(status === 'done') return '完了';
+        if(status === 'error') return 'エラー';
+        return '';
+    }
+
+    function updateStatus(idx, status) {
+        filesQueue[idx].status = status;
+        const badge = document.getElementById(`badge-${idx}`);
+        if(badge) {
+            badge.className = `status-badge status-${status}`;
+            badge.innerText = getStatusText(status);
+        }
+    }
+
+    function checkReady() {
+        const isReady = isFfmpegReady && inpBg.files.length > 0 && filesQueue.length > 0;
+        if(isReady) {
+            btnRun.innerText = "一括作成を開始";
+            btnRun.disabled = false;
+        } else {
+            if(!isFfmpegReady) btnRun.innerText = "エンジンの準備中...";
+            else btnRun.innerText = "素材を選択してください";
+            btnRun.disabled = true;
+        }
+    }
+
+    // --- 4. 実行処理 (FFmpeg) ---
+    btnRun.onclick = async () => {
+        btnRun.disabled = true;
+        
+        // 背景の読み込み
+        const bgFile = inpBg.files[0];
+        ffmpeg.FS('writeFile', 'bg.mp4', await fetchFile(bgFile));
+
+        for (let i = 0; i < filesQueue.length; i++) {
+            const item = filesQueue[i];
+            updateStatus(i, 'processing');
+
+            try {
+                // 前面の読み込み
+                ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(item.file));
+
+                // コマンド実行 (背景ループ + リサイズ合成)
+                const outName = `output.mp4`;
+                await ffmpeg.run(
+                    '-stream_loop', '-1', 
+                    '-i', 'bg.mp4', 
+                    '-i', 'input.mp4', 
+                    '-filter_complex', `[1:v]scale=iw*${config.scale}:-1[fg];[0:v][fg]overlay=(W-w)/2:(H-h)/2:shortest=1`,
+                    '-c:v', 'libx264', '-preset', 'ultrafast', 
+                    '-c:a', 'aac', 
+                    outName
+                );
+
+                // 保存処理 (自動ダウンロード)
+                updateStatus(i, 'saving');
+                const data = ffmpeg.FS('readFile', outName);
+                
+                const blob = new Blob([data.buffer], { type: 'video/mp4' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${item.newName}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 2000);
+
+                // クリーンアップ
+                ffmpeg.FS('unlink', 'input.mp4');
+                ffmpeg.FS('unlink', outName);
+                updateStatus(i, 'done');
+
+            } catch (err) {
+                console.error(err);
+                updateStatus(i, 'error');
+            }
+        }
+        
+        ffmpeg.FS('unlink', 'bg.mp4');
+        alert("すべての処理が完了しました！");
+        btnRun.disabled = false;
+        btnRun.innerText = "一括作成を開始";
+    };
+</script>
+</body>
+</html>
