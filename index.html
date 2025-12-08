@@ -4,21 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>クリエイティブ枠付けツール</title>
+
+<link rel="icon" href="favicon.png" type="image/png">
+
 <script src="coi-serviceworker.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <style>
     body { font-family: "Helvetica Neue", Arial, sans-serif; background: #f0f2f5; color: #333; margin: 0; padding: 20px; }
     .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
     
-    /* ★変更点: タイトル色を統一 */
     h1 { margin-top: 0; color: #0056b3; margin-bottom: 5px; }
     .desc { color: #666; margin-bottom: 25px; font-size: 0.9em; }
 
     /* ステップデザイン (青丸数字) */
     .step-section { margin-bottom: 25px; padding: 20px; border: 1px solid #e1e4e8; border-radius: 8px; background: #fafbfc; }
     .step-header { font-weight: bold; font-size: 1.1em; margin-bottom: 15px; display: flex; align-items: center; color: #333; }
-    
-    /* ★変更点: 丸数字の背景色を統一 */
     .step-num { 
         background: #0056b3; color: white; width: 28px; height: 28px; border-radius: 50%; 
         display: inline-flex; justify-content: center; align-items: center; margin-right: 10px; 
@@ -27,7 +27,6 @@
 
     /* ラジオボタン */
     .radio-group label { margin-right: 15px; cursor: pointer; background: white; padding: 5px 12px; border: 1px solid #ccc; border-radius: 4px; display: inline-block; font-size: 0.95em; }
-    /* ★変更点: 選択時の文字色を統一 */
     .radio-group input:checked + span { font-weight: bold; color: #0056b3; }
 
     /* プレビューエリア */
@@ -54,9 +53,7 @@
     .action-area { margin-top: 30px; text-align: center; border-top: 2px solid #eee; padding-top: 20px; }
     button { cursor: pointer; transition: 0.3s; font-size: 1.1em; border: none; padding: 12px 30px; border-radius: 30px; margin: 5px; }
     
-    /* ★変更点: ボタン色も同系色に変更（少し明るめにして押しやすく） */
     #btn-run { background: #007bff; color: white; padding: 15px 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,123,255,0.3); }
-    /* ★変更点: ホバー時はタイトルと同じ濃い青に */
     #btn-run:hover { background: #0056b3; transform: translateY(-2px); }
     #btn-run:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
 
